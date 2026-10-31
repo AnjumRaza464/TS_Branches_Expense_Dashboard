@@ -151,25 +151,34 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
 
   const department = d.departments.find((dep) => dep.code === filters.department);
   const showStaff = deptMetric === "staff";
+  const grainName = grain === "fiscal-year" ? "fiscal year" : grain;
+  const metricToggle = (
+    <div role="radiogroup" aria-label="Payroll or staff" className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 print:hidden">
+      {(["payroll", "staff"] as const).map((m) => (
+        <button
+          key={m}
+          role="radio"
+          aria-checked={deptMetric === m}
+          onClick={() => setDeptMetric(m)}
+          className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${deptMetric === m ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+        >
+          {m === "payroll" ? "Payroll (PKR)" : "Staff"}
+        </button>
+      ))}
+    </div>
+  );
   const deptPanel = (
     <Panel
-      title={`Department ${showStaff ? "staff" : "payroll"} × ${grain === "fiscal-year" ? "fiscal year" : grain}`}
-      subtitle={`HRIS ${showStaff ? "employees paid" : "salary paid"} · ${branch ? branch.name : "all locations in scope"} · click a department to filter`}
+      title={`Department ${showStaff ? "staff" : "payroll"} × ${grainName}`}
+      subtitle={`HRIS ${showStaff ? "employees paid" : "salary paid"} · ${branch ? branch.name : "all locations in scope"} · ${
+        department ? "click the department to show all departments" : "click a department to filter"
+      }`}
       bodyClassName="px-5 pb-4"
       actions={
-        <div role="radiogroup" aria-label="Department measure" className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 print:hidden">
-          {(["payroll", "staff"] as const).map((m) => (
-            <button
-              key={m}
-              role="radio"
-              aria-checked={deptMetric === m}
-              onClick={() => setDeptMetric(m)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${deptMetric === m ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-            >
-              {m === "payroll" ? "Payroll (PKR)" : "Staff"}
-            </button>
-          ))}
-        </div>
+        <>
+          {metricToggle}
+          {department && <GrainToggle value={grain} onChange={setGrainChoice} />}
+        </>
       }
     >
       <MonthlyMatrix
@@ -318,7 +327,77 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
             </>
           )}
 
-          {view === "monthly" && (
+          {view === "monthly" && department && (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800">
+                <p>
+                  Showing <b>{department.name}</b> only: HRIS payroll and staff by month. Expense spend is booked by location and cost head, not by
+                  department, so it is shown when <b>All departments</b> is selected.
+                </p>
+                <button
+                  onClick={() => update({ department: ALL })}
+                  className="shrink-0 rounded-lg border border-sky-300 bg-white px-3 py-1.5 font-medium text-sky-800 hover:bg-sky-100"
+                >
+                  Show all departments
+                </button>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <KpiCard
+                  label="Payroll in range"
+                  icon={Wallet}
+                  value={formatPKR(summary.kpis.payroll)}
+                  detail={summary.kpis.periodLabel}
+                  delta={{
+                    value: summary.kpis.payrollComparison.change,
+                    upIsBad: true,
+                    label: summary.kpis.payrollComparison.previousLabel ? `vs ${summary.kpis.payrollComparison.previousLabel}` : "no prior-year data",
+                  }}
+                />
+                <KpiCard
+                  label="Avg staff / month"
+                  icon={Users}
+                  value={summary.kpis.hrisMonths ? formatNumber(summary.kpis.employeeMonths / summary.kpis.hrisMonths, 1) : "—"}
+                  detail={`${summary.kpis.hrisMonths} month${summary.kpis.hrisMonths === 1 ? "" : "s"} with HRIS data`}
+                />
+                <KpiCard
+                  label="Staff (latest month)"
+                  icon={Users}
+                  value={summary.kpis.headcountMonth ? formatNumber(summary.kpis.headcount) : "—"}
+                  detail={summary.kpis.headcountMonth ? monthLabel(summary.kpis.headcountMonth) : "No HRIS data"}
+                  delta={summary.kpis.headcountChange != null ? { value: summary.kpis.headcountChange, label: "vs previous month" } : undefined}
+                />
+                <KpiCard
+                  label="Avg pay / employee-month"
+                  icon={ReceiptText}
+                  value={summary.kpis.employeeMonths ? formatPKR(summary.kpis.payroll / summary.kpis.employeeMonths) : "—"}
+                  detail="payroll ÷ employee-months"
+                />
+              </div>
+
+              {deptPanel}
+
+              <Panel
+                title={`${department.name}: ${showStaff ? "staff" : "payroll"} by location × ${grainName}`}
+                subtitle="Click a location to filter to it · click a column header to focus on that period"
+                bodyClassName="px-5 pb-4"
+                actions={metricToggle}
+              >
+                <MonthlyMatrix
+                  matrix={showStaff ? summary.branchStaffMatrix : summary.branchPayrollMatrix}
+                  unit={showStaff ? "count" : "pkr"}
+                  grain={grain}
+                  rowHeader="Location"
+                  selectedRow={filters.branch}
+                  onSelectRow={(code) => update({ branch: code === filters.branch ? ALL : code, subCategory: ALL })}
+                  onSelectColumn={focusBucket}
+                  emptyMessage="No HRIS payroll for this department in this period."
+                />
+              </Panel>
+            </>
+          )}
+
+          {view === "monthly" && !department && (
             <>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <KpiCard
@@ -342,16 +421,6 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
                 />
                 <KpiCard label="Peak period" icon={Building2} value={peak(summary.trend, grain).value} detail={peak(summary.trend, grain).label} />
               </div>
-
-              {filters.department !== ALL && (
-                <>
-                  <p className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800">
-                    <b>{department?.name ?? filters.department}</b>: payroll and staff by month are shown below (use the Payroll / Staff switch). Spend, trend and location figures are expense-ledger
-                    totals, which are not split by HRIS department, so they do not change with the department filter.
-                  </p>
-                  {deptPanel}
-                </>
-              )}
 
               <div className="grid gap-6">{trendPanel}</div>
 
@@ -387,7 +456,7 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
                 />
               </Panel>
 
-              {filters.department === ALL && deptPanel}
+              {deptPanel}
 
               <Panel title="Period-over-period" subtitle="Latest period first · click a row to focus on it" bodyClassName="px-5 pb-4">
                 <PeriodTable data={summary.trend} heads={heads} grain={grain} onSelect={summary.trend.length > 1 ? focusBucket : undefined} />

@@ -124,6 +124,10 @@ export interface Kpis {
   headcountMonth: string | null;
   headcountChange: number | null;
   payroll: number;
+  /** Payroll over the comparison window vs the same months a year earlier */
+  payrollComparison: Comparison;
+  employeeMonths: number; // sum of monthly headcounts in range
+  hrisMonths: number; // months in range with HRIS data in scope
 }
 
 /** One bar of a trend chart: bucket key + one numeric key per expense head. */
@@ -206,6 +210,9 @@ export interface Summary {
   deptMatrix: Matrix;
   /** HRIS staff paid per department × bucket; quarters/years show the monthly average, totals are averages per month */
   deptStaffMatrix: Matrix;
+  /** HRIS payroll / staff per location × bucket for the selected department(s) */
+  branchPayrollMatrix: Matrix;
+  branchStaffMatrix: Matrix;
 }
 
 // ---------------------------------------------------------------------------
@@ -346,7 +353,12 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
   const deptAgg = d.departments.map(() => ({ salary: 0, empMonths: 0, byMonth: new Map<number, number>() }));
   const deptPayByCol = d.departments.map(() => zeros());
   const deptStaffByCol = d.departments.map(() => zeros());
-  const hrisMonthsInScope = new Set<number>();
+  const branchPayByCol = d.branches.map(() => zeros());
+  const branchStaffByCol = d.branches.map(() => zeros());
+  const hrisMonthsAny = new Set<number>(); // months with HRIS data, whatever the department / branch
+  let payCurrent = 0;
+  let payPrevious = 0;
+  let employeeMonths = 0;
 
   for (const fact of workforceFacts) {
     const [m, b, dep, employees, salary] = fact;
@@ -360,10 +372,19 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
       a.empMonths += employees;
       a.byMonth.set(m, (a.byMonth.get(m) ?? 0) + employees);
     }
-    if (workforceMatch(s, fact, { dept: true })) {
+    if (workforceMatch(s, fact)) {
       deptPayByCol[dep][colOf.get(m)!] += salary;
       deptStaffByCol[dep][colOf.get(m)!] += employees;
-      hrisMonthsInScope.add(m);
+      employeeMonths += employees;
+    }
+    if (workforceMatch(s, fact, { branch: true })) {
+      branchPayByCol[b][colOf.get(m)!] += salary;
+      branchStaffByCol[b][colOf.get(m)!] += employees;
+    }
+    if (workforceMatch(s, fact, { dept: true, branch: true })) hrisMonthsAny.add(m);
+    if (workforceMatch(s, fact, { period: true })) {
+      if (inCmp(m)) payCurrent += salary;
+      else if (inPrev(m)) payPrevious += salary;
     }
     if (workforceMatch(s, fact, { branch: true })) {
       const map = branchEmpByMonth[b];
@@ -422,6 +443,15 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
     headcountMonth: latestHrisMonth >= 0 ? d.months[latestHrisMonth] : null,
     headcountChange: change(headcount, prevHeadcount),
     payroll,
+    payrollComparison: {
+      currentLabel: rangeLabel(d, cmpFrom, cmpTo),
+      previousLabel: hasPrev ? rangeLabel(d, cmpFrom - 12, cmpTo - 12) : null,
+      current: payCurrent,
+      previous: payPrevious,
+      change: hasPrev ? change(payCurrent, payPrevious) : null,
+    },
+    employeeMonths,
+    hrisMonths: empByMonth.size,
   };
 
   const trend: TrendPoint[] = columns.map((label, i) => {
@@ -485,27 +515,31 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
 
   // Headcount is a stock, not a flow: average it over the HRIS months in each bucket
   const hrisMonthsPerCol = zeros();
-  for (const m of hrisMonthsInScope) hrisMonthsPerCol[colOf.get(m)!]++;
-  const staffMonths = hrisMonthsInScope.size;
-  const deptStaffRows = d.departments
-    .map((dep, i) => {
-      const employeeMonths = deptStaffByCol[i].reduce((a, v) => a + v, 0);
-      return {
-        key: dep.code,
-        label: dep.name,
-        sublabel: dep.code,
-        values: deptStaffByCol[i].map((v, c) => (hrisMonthsPerCol[c] ? v / hrisMonthsPerCol[c] : 0)),
-        total: staffMonths ? employeeMonths / staffMonths : 0,
-      };
-    })
-    .filter((r) => r.total > 0)
-    .sort((a, b) => b.total - a.total);
-  const staffColumnTotals = columns.map((_, c) => deptStaffRows.reduce((a, r) => a + r.values[c], 0));
-  const deptStaffMatrix: Matrix = {
-    columns,
-    rows: deptStaffRows,
-    columnTotals: staffColumnTotals,
-    total: deptStaffRows.reduce((a, r) => a + r.total, 0),
+  for (const m of hrisMonthsAny) hrisMonthsPerCol[colOf.get(m)!]++;
+  const staffMatrix = (rows: MatrixRow[]): Matrix => {
+    const kept = rows
+      .map((r) => ({
+        ...r,
+        values: r.values.map((v, c) => (hrisMonthsPerCol[c] ? v / hrisMonthsPerCol[c] : 0)),
+        total: hrisMonthsAny.size ? r.total / hrisMonthsAny.size : 0,
+      }))
+      .filter((r) => r.total > 0)
+      .sort((a, b) => b.total - a.total);
+    return {
+      columns,
+      rows: kept,
+      columnTotals: columns.map((_, c) => kept.reduce((a, r) => a + r.values[c], 0)),
+      total: kept.reduce((a, r) => a + r.total, 0),
+    };
+  };
+  const sumOf = (values: number[]) => values.reduce((a, v) => a + v, 0);
+  const deptRow = (i: number, values: number[]): MatrixRow => {
+    const dep = d.departments[i];
+    return { key: dep.code, label: dep.name, sublabel: dep.code, values, total: sumOf(values) };
+  };
+  const branchRow = (i: number, values: number[]): MatrixRow => {
+    const b = d.branches[i];
+    return { key: b.code, label: b.name, sublabel: `${b.code} · ${b.type}`, values, total: sumOf(values) };
   };
 
   const toMatrix = (rows: MatrixRow[]): Matrix => {
@@ -544,16 +578,10 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
     headMatrix: toMatrix(
       headNames.map((h, i) => ({ key: h, label: h, values: headByCol[i], total: headTotals[i] })),
     ),
-    deptStaffMatrix,
-    deptMatrix: toMatrix(
-      d.departments.map((dep, i) => ({
-        key: dep.code,
-        label: dep.name,
-        sublabel: dep.code,
-        values: deptPayByCol[i],
-        total: deptPayByCol[i].reduce((a, v) => a + v, 0),
-      })),
-    ),
+    deptMatrix: toMatrix(deptPayByCol.map((v, i) => deptRow(i, v))),
+    deptStaffMatrix: staffMatrix(deptStaffByCol.map((v, i) => deptRow(i, v))),
+    branchPayrollMatrix: toMatrix(branchPayByCol.map((v, i) => branchRow(i, v)).filter((_, i) => s.typeOk[i])),
+    branchStaffMatrix: staffMatrix(branchStaffByCol.map((v, i) => branchRow(i, v)).filter((_, i) => s.typeOk[i])),
   };
 }
 
