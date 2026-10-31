@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc; /* slate-50 */
+  --foreground: #0f172a; /* slate-900 */
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, "Segoe UI", sans-serif;
+}
+
+/* Visible keyboard focus everywhere (mouse clicks don't show it) */
+:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+/* Print / Save as PDF: landscape, keep chart colours */
+/* Printing / "Save as PDF" is disabled: the printout carries a notice, not data */
+@media print {
+  body > * {
+    display: none !important;
+  }
+  body::after {
+    content: "Printing is disabled for this dashboard.";
+    display: block;
+    padding: 40mm 0;
+    text-align: center;
+    font: 600 16pt system-ui, sans-serif;
+    color: #0f172a;
+  }
+}
+
+/* Recharts focus outline on click */
+.recharts-wrapper:focus,
+.recharts-wrapper :focus {
+  outline: none;
+}
