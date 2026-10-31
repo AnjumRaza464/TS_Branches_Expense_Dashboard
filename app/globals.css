@@ -46,3 +46,14 @@ body {
 .recharts-wrapper :focus {
   outline: none;
 }
+
+/* Login: keep browser autofill on the dark inputs */
+.login-input:autofill,
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:hover,
+.login-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff;
+  box-shadow: 0 0 0 1000px #1a2140 inset !important;
+  caret-color: #ffffff;
+  transition: background-color 9999s ease-out;
+}
