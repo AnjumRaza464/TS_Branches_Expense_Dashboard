@@ -204,6 +204,8 @@ export interface Summary {
   headMatrix: Matrix;
   /** HRIS payroll per department × time bucket (the expense ledger has no department) */
   deptMatrix: Matrix;
+  /** HRIS staff paid per department × bucket; quarters/years show the monthly average, totals are averages per month */
+  deptStaffMatrix: Matrix;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +345,8 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
   const branchEmpByMonth = d.branches.map(() => new Map<number, number>());
   const deptAgg = d.departments.map(() => ({ salary: 0, empMonths: 0, byMonth: new Map<number, number>() }));
   const deptPayByCol = d.departments.map(() => zeros());
+  const deptStaffByCol = d.departments.map(() => zeros());
+  const hrisMonthsInScope = new Set<number>();
 
   for (const fact of workforceFacts) {
     const [m, b, dep, employees, salary] = fact;
@@ -356,7 +360,11 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
       a.empMonths += employees;
       a.byMonth.set(m, (a.byMonth.get(m) ?? 0) + employees);
     }
-    if (workforceMatch(s, fact, { dept: true })) deptPayByCol[dep][colOf.get(m)!] += salary;
+    if (workforceMatch(s, fact, { dept: true })) {
+      deptPayByCol[dep][colOf.get(m)!] += salary;
+      deptStaffByCol[dep][colOf.get(m)!] += employees;
+      hrisMonthsInScope.add(m);
+    }
     if (workforceMatch(s, fact, { branch: true })) {
       const map = branchEmpByMonth[b];
       map.set(m, (map.get(m) ?? 0) + employees);
@@ -475,6 +483,31 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
     .filter((r) => r.salary > 0 || r.employees > 0)
     .sort((a, b) => b.salary - a.salary);
 
+  // Headcount is a stock, not a flow: average it over the HRIS months in each bucket
+  const hrisMonthsPerCol = zeros();
+  for (const m of hrisMonthsInScope) hrisMonthsPerCol[colOf.get(m)!]++;
+  const staffMonths = hrisMonthsInScope.size;
+  const deptStaffRows = d.departments
+    .map((dep, i) => {
+      const employeeMonths = deptStaffByCol[i].reduce((a, v) => a + v, 0);
+      return {
+        key: dep.code,
+        label: dep.name,
+        sublabel: dep.code,
+        values: deptStaffByCol[i].map((v, c) => (hrisMonthsPerCol[c] ? v / hrisMonthsPerCol[c] : 0)),
+        total: staffMonths ? employeeMonths / staffMonths : 0,
+      };
+    })
+    .filter((r) => r.total > 0)
+    .sort((a, b) => b.total - a.total);
+  const staffColumnTotals = columns.map((_, c) => deptStaffRows.reduce((a, r) => a + r.values[c], 0));
+  const deptStaffMatrix: Matrix = {
+    columns,
+    rows: deptStaffRows,
+    columnTotals: staffColumnTotals,
+    total: deptStaffRows.reduce((a, r) => a + r.total, 0),
+  };
+
   const toMatrix = (rows: MatrixRow[]): Matrix => {
     const kept = rows.filter((r) => r.total > 0).sort((a, b) => b.total - a.total);
     const columnTotals = columns.map((_, c) => kept.reduce((a, r) => a + r.values[c], 0));
@@ -511,6 +544,7 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
     headMatrix: toMatrix(
       headNames.map((h, i) => ({ key: h, label: h, values: headByCol[i], total: headTotals[i] })),
     ),
+    deptStaffMatrix,
     deptMatrix: toMatrix(
       d.departments.map((dep, i) => ({
         key: dep.code,

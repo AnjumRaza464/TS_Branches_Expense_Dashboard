@@ -1,7 +1,7 @@
 "use client";
 
 import { bucketLabel, type Matrix } from "@/lib/analytics";
-import { formatPKR } from "@/lib/format";
+import { formatNumber, formatPKR } from "@/lib/format";
 import type { Grain } from "@/lib/types";
 import { EmptyState } from "./Panel";
 
@@ -31,6 +31,8 @@ interface MonthlyMatrixProps {
   onSelectColumn?: (bucket: string) => void;
   onSelectCell?: (rowKey: string, bucket: string) => void;
   emptyMessage?: string;
+  /** "count" = headcount (averaged per month), shown as numbers instead of PKR */
+  unit?: "pkr" | "count";
 }
 
 /** Rows × time buckets heatmap with row and column totals. */
@@ -43,9 +45,14 @@ export function MonthlyMatrix({
   onSelectColumn,
   onSelectCell,
   emptyMessage = "No spend for this selection.",
+  unit = "pkr",
 }: MonthlyMatrixProps) {
   if (!matrix.rows.length) return <EmptyState message={emptyMessage} />;
   const max = Math.max(...matrix.rows.flatMap((r) => r.values));
+  const isCount = unit === "count";
+  const short = (v: number) => (isCount ? (v > 0 ? formatNumber(v, v < 10 && v % 1 ? 1 : 0) : "–") : compact(v));
+  const exact = (v: number) => (isCount ? `${formatNumber(v, v % 1 ? 1 : 0)} staff` : formatPKR(v, { compact: false }));
+  const totalLabel = isCount ? "Avg / month" : "Total";
 
   return (
     <div>
@@ -67,7 +74,7 @@ export function MonthlyMatrix({
                   )}
                 </th>
               ))}
-              <th className="sticky right-0 border-b border-l border-slate-200 bg-slate-100 px-3 py-2.5 text-right font-semibold text-slate-700">Total</th>
+              <th className="sticky right-0 border-b border-l border-slate-200 bg-slate-100 px-3 py-2.5 text-right font-semibold text-slate-700">{totalLabel}</th>
             </tr>
           </thead>
           <tbody>
@@ -85,7 +92,7 @@ export function MonthlyMatrix({
                 </th>
                 {r.values.map((v, i) => {
                   const style = cellStyle(v, max);
-                  const title = `${r.label} · ${bucketLabel(matrix.columns[i], grain)}: ${formatPKR(v, { compact: false })}`;
+                  const title = `${r.label} · ${bucketLabel(matrix.columns[i], grain)}: ${exact(v)}`;
                   return (
                     <td key={matrix.columns[i]} className="border-b border-r border-white p-0">
                       {onSelectCell && v > 0 ? (
@@ -95,31 +102,31 @@ export function MonthlyMatrix({
                           style={style}
                           className="block h-9 w-full min-w-14 px-1.5 text-center tabular-nums transition hover:ring-2 hover:ring-inset hover:ring-indigo-500"
                         >
-                          {compact(v)}
+                          {short(v)}
                         </button>
                       ) : (
                         <div title={title} style={style} className="flex h-9 min-w-14 items-center justify-center px-1.5 tabular-nums">
-                          {compact(v)}
+                          {short(v)}
                         </div>
                       )}
                     </td>
                   );
                 })}
                 <td className="sticky right-0 border-b border-l border-slate-200 bg-slate-50 px-3 text-right font-semibold tabular-nums text-slate-900">
-                  {compact(r.total)}
+                  {short(r.total)}
                 </td>
               </tr>
             ))}
           </tbody>
           <tfoot className="sticky bottom-0 z-20">
             <tr className="bg-slate-100 font-semibold text-slate-900">
-              <th className="sticky left-0 z-10 border-t border-slate-300 bg-slate-100 py-2.5 pl-5 pr-3 text-left text-sm">Total</th>
+              <th className="sticky left-0 z-10 border-t border-slate-300 bg-slate-100 py-2.5 pl-5 pr-3 text-left text-sm">{isCount ? "All departments" : "Total"}</th>
               {matrix.columnTotals.map((v, i) => (
-                <td key={matrix.columns[i]} className="border-t border-slate-300 px-1.5 text-center tabular-nums" title={formatPKR(v, { compact: false })}>
-                  {compact(v)}
+                <td key={matrix.columns[i]} className="border-t border-slate-300 px-1.5 text-center tabular-nums" title={exact(v)}>
+                  {short(v)}
                 </td>
               ))}
-              <td className="sticky right-0 border-l border-t border-slate-300 bg-slate-200 px-3 text-right tabular-nums">{compact(matrix.total)}</td>
+              <td className="sticky right-0 border-l border-t border-slate-300 bg-slate-200 px-3 text-right tabular-nums">{short(matrix.total)}</td>
             </tr>
           </tfoot>
         </table>
@@ -132,7 +139,11 @@ export function MonthlyMatrix({
           ))}
         </span>
         <span>High</span>
-        <span className="ml-auto">PKR · K = thousand, M = million · hover a cell for the exact amount</span>
+        <span className="ml-auto">
+          {isCount
+            ? "Staff paid per month (HRIS) · quarters / years show the monthly average · hover a cell for details"
+            : "PKR · K = thousand, M = million · hover a cell for the exact amount"}
+        </span>
       </div>
     </div>
   );

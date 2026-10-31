@@ -103,6 +103,7 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
   const [grainChoice, setGrainChoice] = useState<Grain | null>(initial.grain); // null = automatic
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deptMetric, setDeptMetric] = useState<"payroll" | "staff">("payroll");
 
   const summary = useMemo(() => summarize(model, filters, grainChoice ?? undefined), [model, filters, grainChoice]);
   const alerts = useMemo(() => computeAlerts(model, filters), [model, filters]);
@@ -149,14 +150,31 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
   };
 
   const department = d.departments.find((dep) => dep.code === filters.department);
+  const showStaff = deptMetric === "staff";
   const deptPanel = (
     <Panel
-      title={`Department payroll × ${grain === "fiscal-year" ? "fiscal year" : grain}`}
-      subtitle={`HRIS salary paid · ${branch ? branch.name : "all locations in scope"} · click a department to filter`}
+      title={`Department ${showStaff ? "staff" : "payroll"} × ${grain === "fiscal-year" ? "fiscal year" : grain}`}
+      subtitle={`HRIS ${showStaff ? "employees paid" : "salary paid"} · ${branch ? branch.name : "all locations in scope"} · click a department to filter`}
       bodyClassName="px-5 pb-4"
+      actions={
+        <div role="radiogroup" aria-label="Department measure" className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 print:hidden">
+          {(["payroll", "staff"] as const).map((m) => (
+            <button
+              key={m}
+              role="radio"
+              aria-checked={deptMetric === m}
+              onClick={() => setDeptMetric(m)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${deptMetric === m ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+            >
+              {m === "payroll" ? "Payroll (PKR)" : "Staff"}
+            </button>
+          ))}
+        </div>
+      }
     >
       <MonthlyMatrix
-        matrix={summary.deptMatrix}
+        matrix={showStaff ? summary.deptStaffMatrix : summary.deptMatrix}
+        unit={showStaff ? "count" : "pkr"}
         grain={grain}
         rowHeader="Department"
         selectedRow={filters.department}
@@ -328,7 +346,7 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
               {filters.department !== ALL && (
                 <>
                   <p className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800">
-                    <b>{department?.name ?? filters.department}</b>: payroll by month is shown below. Spend, trend and location figures are expense-ledger
+                    <b>{department?.name ?? filters.department}</b>: payroll and staff by month are shown below (use the Payroll / Staff switch). Spend, trend and location figures are expense-ledger
                     totals, which are not split by HRIS department, so they do not change with the department filter.
                   </p>
                   {deptPanel}
