@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Branch Operations Dashboard",
+  title: "Black and Brown Bakers · Expense Dashboard",
   description: "Executive & branch expense dashboard — spend, cost heads, HRIS workforce and ledger drill-down",
 };
 

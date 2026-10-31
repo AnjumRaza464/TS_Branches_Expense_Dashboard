@@ -40,10 +40,10 @@ export function Sidebar({ view, onNavigate, dimensions, open, onClose, alertCoun
         <div className="flex items-center justify-between px-5 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500 text-sm font-bold text-white">
-              BE
+              BB
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Branch Operations</p>
+              <p className="text-sm font-semibold text-white">Black and Brown Bakers</p>
               <p className="text-xs text-slate-400">Expense Intelligence</p>
             </div>
           </div>

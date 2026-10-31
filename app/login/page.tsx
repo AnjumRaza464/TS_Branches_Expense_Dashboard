@@ -4,7 +4,7 @@ import { BellRing, Building2, Layers, ShieldCheck, Users } from "lucide-react";
 import { BarField } from "./BarField";
 import { LoginForm } from "./LoginForm";
 
-export const metadata: Metadata = { title: "Sign in · Branch Operations Dashboard" };
+export const metadata: Metadata = { title: "Sign in · Black and Brown Bakers" };
 
 const FEATURES = [
   { icon: Building2, title: "Every branch, every month", text: "Spend by location, cost head and period" },
@@ -94,10 +94,10 @@ function Brand() {
   return (
     <div className="flex items-center gap-3">
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-500 text-sm font-bold shadow-lg shadow-indigo-500/30">
-        BE
+        BB
       </div>
       <div>
-        <p className="font-semibold leading-tight text-white">Branch Operations</p>
+        <p className="font-semibold leading-tight text-white">Black and Brown Bakers</p>
         <p className="text-xs text-slate-400">Expense Intelligence</p>
       </div>
     </div>
