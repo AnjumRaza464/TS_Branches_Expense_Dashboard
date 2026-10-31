@@ -1,0 +1,8 @@
+# CLI deploys upload the generated data (needed by the app) but not the raw workbook or secrets
+*.xlsx
+*.xls
+*.csv
+.env*
+!.env.example
+scripts/
+*.tsbuildinfo

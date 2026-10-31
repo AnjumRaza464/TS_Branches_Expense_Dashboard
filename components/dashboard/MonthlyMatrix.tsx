@@ -30,11 +30,21 @@ interface MonthlyMatrixProps {
   onSelectRow?: (key: string) => void;
   onSelectColumn?: (bucket: string) => void;
   onSelectCell?: (rowKey: string, bucket: string) => void;
+  emptyMessage?: string;
 }
 
 /** Rows × time buckets heatmap with row and column totals. */
-export function MonthlyMatrix({ matrix, grain, rowHeader, selectedRow, onSelectRow, onSelectColumn, onSelectCell }: MonthlyMatrixProps) {
-  if (!matrix.rows.length) return <EmptyState message="No spend for this selection." />;
+export function MonthlyMatrix({
+  matrix,
+  grain,
+  rowHeader,
+  selectedRow,
+  onSelectRow,
+  onSelectColumn,
+  onSelectCell,
+  emptyMessage = "No spend for this selection.",
+}: MonthlyMatrixProps) {
+  if (!matrix.rows.length) return <EmptyState message={emptyMessage} />;
   const max = Math.max(...matrix.rows.flatMap((r) => r.values));
 
   return (

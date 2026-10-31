@@ -202,6 +202,8 @@ export interface Summary {
   workforceTrend: WorkforcePoint[];
   branchMatrix: Matrix;
   headMatrix: Matrix;
+  /** HRIS payroll per department × time bucket (the expense ledger has no department) */
+  deptMatrix: Matrix;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +211,7 @@ export interface Summary {
 // (e.g. the branch table lists every branch even when one is selected).
 // ---------------------------------------------------------------------------
 
-type Ignore = Partial<Record<"period" | "branch" | "head" | "sub", boolean>>;
+type Ignore = Partial<Record<"period" | "branch" | "head" | "sub" | "dept", boolean>>;
 
 function scope(model: Model, f: Filters) {
   const { dimensions: d } = model.data;
@@ -239,7 +241,7 @@ function expenseMatch(s: Scope, fact: number[], ignore: Ignore = {}): boolean {
 
 function workforceMatch(s: Scope, fact: number[], ignore: Ignore = {}): boolean {
   const [m, b, dep] = fact;
-  if (!s.typeOk[b] || !s.deptOk[dep]) return false;
+  if (!s.typeOk[b] || (!ignore.dept && !s.deptOk[dep])) return false;
   if (!ignore.period && (m < s.from || m > s.to)) return false;
   if (!ignore.branch && s.branch !== -1 && b !== s.branch) return false;
   return true;
@@ -340,6 +342,7 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
   const salByMonth = new Map<number, number>();
   const branchEmpByMonth = d.branches.map(() => new Map<number, number>());
   const deptAgg = d.departments.map(() => ({ salary: 0, empMonths: 0, byMonth: new Map<number, number>() }));
+  const deptPayByCol = d.departments.map(() => zeros());
 
   for (const fact of workforceFacts) {
     const [m, b, dep, employees, salary] = fact;
@@ -353,6 +356,7 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
       a.empMonths += employees;
       a.byMonth.set(m, (a.byMonth.get(m) ?? 0) + employees);
     }
+    if (workforceMatch(s, fact, { dept: true })) deptPayByCol[dep][colOf.get(m)!] += salary;
     if (workforceMatch(s, fact, { branch: true })) {
       const map = branchEmpByMonth[b];
       map.set(m, (map.get(m) ?? 0) + employees);
@@ -506,6 +510,15 @@ export function summarize(model: Model, f: Filters, grainOverride?: Grain): Summ
     ),
     headMatrix: toMatrix(
       headNames.map((h, i) => ({ key: h, label: h, values: headByCol[i], total: headTotals[i] })),
+    ),
+    deptMatrix: toMatrix(
+      d.departments.map((dep, i) => ({
+        key: dep.code,
+        label: dep.name,
+        sublabel: dep.code,
+        values: deptPayByCol[i],
+        total: deptPayByCol[i].reduce((a, v) => a + v, 0),
+      })),
     ),
   };
 }

@@ -148,6 +148,25 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
     navigate("ledger");
   };
 
+  const department = d.departments.find((dep) => dep.code === filters.department);
+  const deptPanel = (
+    <Panel
+      title={`Department payroll × ${grain === "fiscal-year" ? "fiscal year" : grain}`}
+      subtitle={`HRIS salary paid · ${branch ? branch.name : "all locations in scope"} · click a department to filter`}
+      bodyClassName="px-5 pb-4"
+    >
+      <MonthlyMatrix
+        matrix={summary.deptMatrix}
+        grain={grain}
+        rowHeader="Department"
+        selectedRow={filters.department}
+        onSelectRow={(code) => update({ department: code === filters.department ? ALL : code })}
+        onSelectColumn={focusBucket}
+        emptyMessage="No HRIS payroll in this period (outside HRIS coverage)."
+      />
+    </Panel>
+  );
+
   const trendPanel = (
     <Panel
       className="xl:col-span-2"
@@ -306,6 +325,16 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
                 <KpiCard label="Peak period" icon={Building2} value={peak(summary.trend, grain).value} detail={peak(summary.trend, grain).label} />
               </div>
 
+              {filters.department !== ALL && (
+                <>
+                  <p className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800">
+                    <b>{department?.name ?? filters.department}</b>: payroll by month is shown below. Spend, trend and location figures are expense-ledger
+                    totals, which are not split by HRIS department, so they do not change with the department filter.
+                  </p>
+                  {deptPanel}
+                </>
+              )}
+
               <div className="grid gap-6">{trendPanel}</div>
 
               <Panel
@@ -339,6 +368,8 @@ export function DashboardShell({ data, user }: { data: DashboardData; user: stri
                   onSelectColumn={focusBucket}
                 />
               </Panel>
+
+              {filters.department === ALL && deptPanel}
 
               <Panel title="Period-over-period" subtitle="Latest period first · click a row to focus on it" bodyClassName="px-5 pb-4">
                 <PeriodTable data={summary.trend} heads={heads} grain={grain} onSelect={summary.trend.length > 1 ? focusBucket : undefined} />
