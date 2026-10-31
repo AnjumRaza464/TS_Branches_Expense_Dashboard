@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { Suspense } from "react";
 import { BellRing, Building2, Layers, ShieldCheck, Users } from "lucide-react";
 import { BarField } from "./BarField";
 import { LoginForm } from "./LoginForm";
+import logo from "@/public/brand/logo.png";
 
 export const metadata: Metadata = { title: "Sign in · Black and Brown Bakers" };
 
@@ -93,9 +95,7 @@ export default function LoginPage() {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-500 text-sm font-bold shadow-lg shadow-indigo-500/30">
-        BB
-      </div>
+      <Image src={logo} alt="Black and Brown Bakers logo" width={48} height={48} preload className="h-12 w-12 shrink-0 drop-shadow-[0_6px_18px_rgba(237,24,70,0.35)]" />
       <div>
         <p className="font-semibold leading-tight text-white">Black and Brown Bakers</p>
         <p className="text-xs text-slate-400">Expense Intelligence</p>

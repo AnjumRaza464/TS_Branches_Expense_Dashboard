@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { BellRing, Building2, Database, Grid3x3, LayoutDashboard, ReceiptText, Users, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { formatNumber, formatPKR, monthLabel } from "@/lib/format";
 import type { DashboardView, Dimensions } from "@/lib/types";
+import logo from "@/public/brand/logo.png";
 
 const NAV: { view: DashboardView; label: string; icon: LucideIcon; hint: string }[] = [
   { view: "overview", label: "Executive Overview", icon: LayoutDashboard, hint: "KPIs, trend & drill-down" },
@@ -39,9 +41,7 @@ export function Sidebar({ view, onNavigate, dimensions, open, onClose, alertCoun
       >
         <div className="flex items-center justify-between px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500 text-sm font-bold text-white">
-              BB
-            </div>
+            <Image src={logo} alt="Black and Brown Bakers logo" width={40} height={40} preload className="h-10 w-10 shrink-0" />
             <div>
               <p className="text-sm font-semibold text-white">Black and Brown Bakers</p>
               <p className="text-xs text-slate-400">Expense Intelligence</p>
